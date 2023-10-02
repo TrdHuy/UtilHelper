@@ -115,7 +115,10 @@ namespace ppt2img
 
             var hashid = GetHashIdFromOutput(output);
             Console.WriteLine($"hashId = {hashid}");
-            PushRefAndUpdateMdFile(slideCountAndOutNames, hashid);
+            if (hashid != "")
+            {
+                PushRefAndUpdateMdFile(slideCountAndOutNames, hashid);
+            }
 
             Console.WriteLine("Done");
         }
