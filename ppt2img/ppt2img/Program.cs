@@ -130,7 +130,9 @@ namespace ppt2img
                 var inPpt = item.Item3;
                 var baseName = Path.GetFileNameWithoutExtension(inPpt);
                 var mdFilePath = Path.GetDirectoryName(inPpt) + "\\" + baseName + ".md";
+                var changedFileInfoPath = projectRefPath + "\\" + "changedMdFile.txt";
 
+                using (StreamWriter changedMdFileWriter = new StreamWriter(changedFileInfoPath))
                 using (StreamWriter writer = new StreamWriter(mdFilePath))
                 {
                     var currentSection = -1;
@@ -162,6 +164,8 @@ namespace ppt2img
                             writer.WriteLine($"![{matchedFileId}_{secIndex}_{slideIndex}]({refFileUrl})");
                         }
                     }
+
+                    changedMdFileWriter.WriteLine(mdFilePath);
                 }
             }
         }
