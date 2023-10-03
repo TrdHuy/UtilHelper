@@ -89,6 +89,6 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: MSIX Package
-        path: ppt2img\ppt2img\bin\$env:Configuration\ppt2img\ppt2img\bin\$env:Configuration.zip
+        path: ppt2img\ppt2img\bin\Release\Release.zip
       env:
         Configuration: ${{ matrix.configuration }}
