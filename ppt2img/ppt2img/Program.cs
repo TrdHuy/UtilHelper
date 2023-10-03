@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Microsoft.Office.Core;
 using System.IO;
@@ -17,9 +17,11 @@ namespace ppt2img
         static String projectRefPath = "";
         static String projectRefUrl = "";
         static String projectRefRemoteBranch = "";
-
+        static String currentDir = Path.GetFullPath(".");
+        static String currentExecuteDir = AppDomain.CurrentDomain.BaseDirectory;
         static void Main(string[] args)
         {
+            Console.WriteLine($"currentExeDir = {currentExecuteDir}");
             if (args.Length == 0)
             {
                 Console.WriteLine(@"Usage: ppt2img <ppt|pptx> [options]
@@ -30,7 +32,7 @@ namespace ppt2img
                 -t|--type <png|jpg>
             Example:
                 ppt2img ""C:\SCS\VSProj\SPRNetTool\trdhuy\ArtWiz\UIUX\[feature]_png_to_spr.pptx"" -rB ""origin/main"" -rU ""https://github.sec.samsung.net/huy-td1/test_repo"" -rP ""C:\SCS\VSProj\SPRNetTool\trdhuy\test_repo""");
-                Console.ReadLine();
+                Environment.Exit(1);
                 return;
             }
 
@@ -47,12 +49,12 @@ namespace ppt2img
                     else if (args[i] == "--ref-repo-path" || args[i] == "-rP")
                     {
                         ++i;
-                        projectRefPath = args[i];
+                        projectRefPath = FormatPath(args[i]);
                     }
                     else if (args[i] == "--ref-repo-url" || args[i] == "-rU")
                     {
                         ++i;
-                        Program.projectRefUrl = args[i];
+                        projectRefUrl = args[i];
                     }
                     else if (args[i] == "--ref-remote-branch" || args[i] == "-rB")
                     {
@@ -60,33 +62,40 @@ namespace ppt2img
                         projectRefRemoteBranch = args[i];
                     }
                     else
-                        listInputFile.Add(args[i]);
+                    {
+                        listInputFile.Add(FormatPath(args[i]));
+                    }
                 }
+                Console.WriteLine("listInputFile = ");
+                foreach (var inpt in listInputFile)
+                {
+                    Console.WriteLine(inpt);
+                }
+
             }
             catch (Exception e)
             {
                 Console.WriteLine("Invalid args");
                 Console.WriteLine("{0}", e.Message);
+                Environment.Exit(1);
                 return;
             }
             if (listInputFile.Count == 0)
             {
                 Console.WriteLine("Missing input file!");
+                Environment.Exit(1);
                 return;
             }
-            if (Program.projectRefUrl == "")
+            if (projectRefUrl == "")
             {
                 Console.WriteLine("Missing -rU required option!");
+                Environment.Exit(1);
                 return;
             }
-            if (projectRefPath == "")
+            if (projectRefRemoteBranch == "" && projectRefPath != "")
             {
-                Console.WriteLine("Missing -rP required option!");
-                return;
-            }
-            if (projectRefRemoteBranch == "")
-            {
-                Console.WriteLine("Missing -rB required option!");
+                Console.WriteLine("Missing -rB required option with -rP option!");
+                Environment.Exit(1);
                 return;
             }
 
@@ -100,27 +109,59 @@ namespace ppt2img
             {
                 Directory.CreateDirectory(outDir);
             }
-
-            List<(int, List<string>, string)> slideCountAndOutNames = new List<(int, List<string>, string)>();
-            foreach (var inPpt in listInputFile)
+            var cacheGitFilePath = $"{currentExecuteDir}\\.cache";
+            if (!Directory.Exists(cacheGitFilePath))
             {
-                int slideCount;
-                List<string> outNames = new List<string>();
-                ExportPpt2Img(inPpt, out slideCount, outNames);
-                slideCountAndOutNames.Add((slideCount, outNames, inPpt));
+                Directory.CreateDirectory(cacheGitFilePath);
             }
 
-            string pushRefCmd = buildPushRefCmd(projectRefPath, projectRefRemoteBranch, $"img{DateTime.Now.Ticks}", outDir);
-            ExeCmd(pushRefCmd, out string output, out string error);
-
-            var hashid = GetHashIdFromOutput(output);
-            Console.WriteLine($"hashId = {hashid}");
-            if (hashid != "")
+            try
             {
+                List<(int, List<string>, string)> slideCountAndOutNames = new List<(int, List<string>, string)>();
+                foreach (var inPpt in listInputFile)
+                {
+                    int slideCount;
+                    List<string> outNames = new List<string>();
+                    ExportPpt2Img(inPpt, out slideCount, outNames);
+                    slideCountAndOutNames.Add((slideCount, outNames, inPpt));
+                }
+
+                string pushRefCmd = buildPushRefCmd(projectRefPath, projectRefRemoteBranch, $"img{DateTime.Now.Ticks}", outDir);
+                ExeCmd(pushRefCmd, out string output, out string error);
+
+                var hashid = GetHashIdFromOutput(output);
+                Console.WriteLine($"hashId = {hashid}");
+                if (hashid == "")
+                {
+                    Console.WriteLine("Empty hash id");
+                    Environment.Exit(1);
+                    return;
+                }
                 PushRefAndUpdateMdFile(slideCountAndOutNames, hashid);
-            }
 
-            Console.WriteLine("Done");
+                Console.WriteLine("Done");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                Console.WriteLine(e.StackTrace);
+                Environment.Exit(1);
+            }
+        }
+
+        private static string FormatPath(string rawPath)
+        {
+            rawPath = rawPath.Replace("\"","");
+            if (rawPath.StartsWith("/") || rawPath.Contains("/"))
+            {
+                if (rawPath.StartsWith("/c/"))
+                {
+                    rawPath = rawPath.Replace("/c/", "c:/");
+                    rawPath = rawPath.Replace('/', '\\');
+                    return rawPath;
+                }
+            }
+            return rawPath;
         }
 
         private static void PushRefAndUpdateMdFile(List<(int, List<string>, string)> slideCountAndOutNames, string hashid)
@@ -130,9 +171,7 @@ namespace ppt2img
                 var inPpt = item.Item3;
                 var baseName = Path.GetFileNameWithoutExtension(inPpt);
                 var mdFilePath = Path.GetDirectoryName(inPpt) + "\\" + baseName + ".md";
-                var changedFileInfoPath = projectRefPath + "\\" + "changedMdFile.txt";
 
-                using (StreamWriter changedMdFileWriter = new StreamWriter(changedFileInfoPath))
                 using (StreamWriter writer = new StreamWriter(mdFilePath))
                 {
                     var currentSection = -1;
@@ -164,14 +203,13 @@ namespace ppt2img
                             writer.WriteLine($"![{matchedFileId}_{secIndex}_{slideIndex}]({refFileUrl})");
                         }
                     }
-
-                    changedMdFileWriter.WriteLine(mdFilePath);
                 }
             }
         }
 
         private static void ExportPpt2Img(string inPpt, out int slideCount, List<string> outNames)
         {
+            Console.WriteLine($"inPPt={inPpt}");
             var baseName = Path.GetFileNameWithoutExtension(inPpt);
             Application PowerPoint_App = new Application();
             Presentations multi_presentations = PowerPoint_App.Presentations;
@@ -210,6 +248,24 @@ namespace ppt2img
 
         static string buildPushRefCmd(string projectRefPath, string projectRefRemoteBranch, string newRandomBranch, string folderPathToPush)
         {
+            if (projectRefPath == "")
+            {
+                var cacheGitFilePath = $"{currentExecuteDir}\\.cache";
+
+                return $"echo \"Start create new ref\"" +
+                    $"&& cd \"{cacheGitFilePath}\" " +
+                    $"&& git clone \"{projectRefUrl.Trim()}.git\" " +
+                    $"&& cd \"{projectRefUrl.Substring(projectRefUrl.LastIndexOf('/') + 1).Trim()}\" " +
+                    $"&& git checkout --orphan {newRandomBranch} " +
+                    $"&& xcopy /E /I /Y \"{folderPathToPush}\" \"changes\\{Path.GetFileName(folderPathToPush)}\" " +
+                    "&& git add changes " +
+                    "&& git commit -m \"add changes\" " +
+                    $"&& git push origin HEAD:refs/{newRandomBranch}/image-ref " +
+                    $"&& echo \"=========THIS IS COMMIT HASH ID=========\" " +
+                    $"&& git log --format=%H " +
+                    $"&& echo \"=========END COMMIT HASH ID=========\" " +
+                    $"&& cd .. && rmdir /s /q \"{projectRefUrl.Substring(projectRefUrl.LastIndexOf('/') + 1).Trim()}\"";
+            }
             return $"echo \"Start create new ref\"" +
                 $"&& cd \"{projectRefPath}\" " +
                 $"&& git checkout {projectRefRemoteBranch} --orphan {newRandomBranch} " +
