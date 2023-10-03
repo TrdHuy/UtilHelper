@@ -73,8 +73,14 @@ jobs:
       uses: microsoft/setup-msbuild@v1.0.2
 
     # Build ppt2img
-    - name: Restore the application
+    - name: Build ppt2img
       run: msbuild ppt2img\ppt2img\ppt2img.csproj /p:Configuration=$env:Configuration
+      env:
+        Configuration: ${{ matrix.configuration }}
+
+    # Zip release
+    - name: Build ppt2img
+      run: Compress-Archive -Path 'ppt2img\ppt2img\bin\$env:Configuration' -DestinationPath 'ppt2img\ppt2img\bin\$env:Configuration\ppt2img\ppt2img\bin\$env:Configuration.zip'
       env:
         Configuration: ${{ matrix.configuration }}
 
@@ -83,4 +89,6 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: MSIX Package
-        path: ppt2img\ppt2im\bin\Release
+        path: ppt2img\ppt2img\bin\$env:Configuration\ppt2img\ppt2img\bin\$env:Configuration.zip
+      env:
+        Configuration: ${{ matrix.configuration }}
