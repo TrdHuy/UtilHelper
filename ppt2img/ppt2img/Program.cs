@@ -19,6 +19,8 @@ namespace ppt2img
         static String projectRefRemoteBranch = "";
         static String currentDir = Path.GetFullPath(".");
         static String currentExecuteDir = AppDomain.CurrentDomain.BaseDirectory;
+        static bool isPushToRef = false;
+
         static void Main(string[] args)
         {
             Console.WriteLine($"currentExeDir = {currentExecuteDir}");
@@ -55,6 +57,7 @@ namespace ppt2img
                     {
                         ++i;
                         projectRefUrl = args[i];
+                        isPushToRef = true;
                     }
                     else if (args[i] == "--ref-remote-branch" || args[i] == "-rB")
                     {
@@ -83,12 +86,6 @@ namespace ppt2img
             if (listInputFile.Count == 0)
             {
                 Console.WriteLine("Missing input file!");
-                Environment.Exit(1);
-                return;
-            }
-            if (projectRefUrl == "")
-            {
-                Console.WriteLine("Missing -rU required option!");
                 Environment.Exit(1);
                 return;
             }
@@ -126,19 +123,20 @@ namespace ppt2img
                     slideCountAndOutNames.Add((slideCount, outNames, inPpt));
                 }
 
-                string pushRefCmd = buildPushRefCmd(projectRefPath, projectRefRemoteBranch, $"img{DateTime.Now.Ticks}", outDir);
-                ExeCmd(pushRefCmd, out string output, out string error);
-
-                var hashid = GetHashIdFromOutput(output);
-                Console.WriteLine($"hashId = {hashid}");
-                if (hashid == "")
+                if (isPushToRef)
                 {
-                    Console.WriteLine("Empty hash id");
-                    Environment.Exit(1);
-                    return;
+                    string pushRefCmd = buildPushRefCmd(projectRefPath, projectRefRemoteBranch, $"img{DateTime.Now.Ticks}", outDir);
+                    ExeCmd(pushRefCmd, out string output, out string error);
+                    var hashid = GetHashIdFromOutput(output);
+                    Console.WriteLine($"hashId = {hashid}");
+                    if (hashid == "")
+                    {
+                        Console.WriteLine("Empty hash id");
+                        Environment.Exit(1);
+                        return;
+                    }
+                    PushRefAndUpdateMdFile(slideCountAndOutNames, hashid);
                 }
-                PushRefAndUpdateMdFile(slideCountAndOutNames, hashid);
-
                 Console.WriteLine("Done");
             }
             catch (Exception e)
@@ -151,7 +149,7 @@ namespace ppt2img
 
         private static string FormatPath(string rawPath)
         {
-            rawPath = rawPath.Replace("\"","");
+            rawPath = rawPath.Replace("\"", "");
             if (rawPath.StartsWith("/") || rawPath.Contains("/"))
             {
                 if (rawPath.StartsWith("/c/"))
