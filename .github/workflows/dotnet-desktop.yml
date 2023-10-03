@@ -40,9 +40,9 @@ name: .NET Core Desktop
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    tags:
+      - "ppt2img/v*"
+ 
 
 jobs:
 
@@ -88,7 +88,20 @@ jobs:
     - name: Upload build artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: MSIX Package
+        name: Release.zip
         path: ppt2img\ppt2img\bin\Release\Release.zip
+
+    - uses: actions/create-release@v1
+      id: create_release
       env:
-        Configuration: ${{ matrix.configuration }}
+        GITHUB_TOKEN: ${{ secrets.WORK_FLOW_ACCESS_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: ${{ github.ref }}
+
+    - uses: csexton/release-asset-actions@v2
+      with:
+        github-token: ${{ secrets.WORK_FLOW_ACCESS_TOKEN }}
+        pattern: ppt2img/ppt2img/bin/Release/*.zip
+        release-url: ${{ steps.create_release.outputs.upload_url }}
+       
