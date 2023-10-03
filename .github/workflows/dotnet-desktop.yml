@@ -40,8 +40,8 @@ name: .NET Core Desktop
 
 on:
   push:
-    branches:
-      - 'master'
+    tags:
+      - "ppt2img/v*"
  
 
 jobs:
