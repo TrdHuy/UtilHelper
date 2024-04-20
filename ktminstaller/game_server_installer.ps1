@@ -17,6 +17,21 @@ function Get-LatestReleaseInfo {
      }
      return $response
 }
+function Get-AssetIdFromReleaseNote {
+     param (
+          [string]$Repo,
+          [string]$releaseNote
+     )
+     $regex = "(\|__" + $Repo + "__\|.+\|)(\d+)\|"
+     $match = $releaseNote -match $regex
+
+     if ($match) {
+          return $matches[2]
+     }
+     else {
+          return $null
+     }
+}
 function Download-LatestReleaseInfo {
      param (
           [string]$Token,
@@ -90,6 +105,41 @@ function Download-LatestReleaseInfoNoRescure {
      return $response
 }
 
+function Download-AndInstall() {
+     param (
+          $repo,
+          $assetId,
+          $installPath,
+          $isResecure
+     )
+     if (-not $assetId) {
+          throw 'Failed to install GameServer'
+     }
+     if (-Not (Test-Path -Path $installPath)) {
+          New-Item -Path $installPath -ItemType Directory
+     }
+     Write-Host "Download and Installing $repo at: $installPath"
+
+     if (!$isResecure) {
+          Download-LatestReleaseInfoNoRescure -Token $GITHUB_TOKEN `
+               -Owner TrdHuy `
+               -Repo $repo `
+               -DownloadPath "$installPath/t.zip" `
+               -ExtractPath "$installPath" `
+               -Id $assetId
+     }
+     else {
+          Download-LatestReleaseInfo -Token $GITHUB_TOKEN `
+               -Owner TrdHuy `
+               -Repo $repo `
+               -DownloadPath "$installPath/t.zip" `
+               -ExtractPath "$installPath" `
+               -Id $assetId
+     }
+     
+     Write-Host "Install $repo successfully at: $installPath"
+}
+
 if (-not $INSTALL_PATH) {
      Write-Host 'To run this in cmd: powershell -File SetUpServer.ps1 -INSTAL_PATH <path/to/your/sv> -GITHUB_TOKEN <your github token>'
      throw 'missing install path'
@@ -109,78 +159,33 @@ Write-Host GAME_SERVER_EXTENSION_PATH: $GAME_SERVER_EXTENSION_PATH
 Write-Host GAME_DBSERVER_PATH: $GAME_DBSERVER_PATH
 Write-Host LOG_DB_SERVER_PATH: $LOG_DB_SERVER_PATH
 
-$response = Get-LatestReleaseInfo -Owner TrdHuy -Repo KiemTheMobile.GameServer -Token $GITHUB_TOKEN
-
-if ($response) {
-     $downloadUrl = $response.assets[0].browser_download_url
+$response = Get-LatestReleaseInfo -Owner TrdHuy -Repo KiemTheMobile -Token $GITHUB_TOKEN
+$mReleaseNote = $response.body
+if (-not $response) {
+     throw "Failed to get realease note from KiemTheMobile"
 }
-else {
-     throw 'Failed to install GameServer'
-}
-if (-Not (Test-Path -Path $GAME_SERVER_PATH)) {
-     New-Item -Path $GAME_SERVER_PATH -ItemType Directory
-}
-Download-LatestReleaseInfo -Token $GITHUB_TOKEN `
-     -Owner TrdHuy `
-     -Repo "KiemTheMobile.GameServer" `
-     -DownloadPath "$GAME_SERVER_PATH/t.zip" `
-     -ExtractPath "$GAME_SERVER_PATH" `
-     -Id $response.assets[0].id
-Write-Host "Install GameServer successfully at: $GAME_SERVER_PATH"
 
 #######################################################
-$response = Get-LatestReleaseInfo -Owner TrdHuy -Repo KiemTheMobile.GameServer.Extension -Token $GITHUB_TOKEN
-
-if ($response) {
-     $downloadUrl = $response.assets[0].browser_download_url
-}
-else {
-     throw 'Failed to install GameServer'
-}
-if (-Not (Test-Path -Path $GAME_SERVER_EXTENSION_PATH)) {
-     New-Item -Path $GAME_SERVER_EXTENSION_PATH -ItemType Directory
-}
-Download-LatestReleaseInfoNoRescure -Token $GITHUB_TOKEN `
-     -Owner TrdHuy `
-     -Repo "KiemTheMobile.GameServer.Extension" `
-     -DownloadPath "$GAME_SERVER_EXTENSION_PATH/t.zip" `
-     -ExtractPath "$GAME_SERVER_EXTENSION_PATH" `
-     -Id $response.assets[0].id
-Write-Host "Install GameServer Extension successfully at: $GAME_SERVER_EXTENSION_PATH"
-
+$assetId = Get-AssetIdFromReleaseNote -Repo "KiemTheMobile.GameServer" -releaseNote $mReleaseNote
+Download-AndInstall -repo "KiemTheMobile.GameServer" `
+     -assetId $assetId `
+     -installPath $GAME_SERVER_PATH `
+     -isResecure $true
 #######################################################
-$response = Get-LatestReleaseInfo -Owner TrdHuy -Repo KiemTheMobile.GameDBServer -Token $GITHUB_TOKEN
-if ( $response) {
-     $downloadUrl = $response.assets[0].browser_download_url
-}
-else {
-     throw 'Failed to install GameDBServer'
-}
-if (-Not (Test-Path -Path $GAME_DBSERVER_PATH)) {
-     New-Item -Path $GAME_DBSERVER_PATH -ItemType Directory
-}
-Download-LatestReleaseInfo -Token $GITHUB_TOKEN `
-     -Owner TrdHuy `
-     -Repo "KiemTheMobile.GameDBServer" `
-     -DownloadPath "$GAME_DBSERVER_PATH/t.zip" `
-     -ExtractPath "$GAME_DBSERVER_PATH" `
-     -Id $response.assets[0].id
-
-
-
-$response = Get-LatestReleaseInfo -Owner TrdHuy -Repo KiemTheMobile.LogDBServer -Token $GITHUB_TOKEN
-if ( $response) {
-     $downloadUrl = $response.assets[0].browser_download_url
-}
-else {
-     throw 'Failed to install LogDBServer'
-}
-if (-Not (Test-Path -Path $LOG_DB_SERVER_PATH)) {
-     New-Item -Path $LOG_DB_SERVER_PATH -ItemType Directory
-}
-Download-LatestReleaseInfo -Token $GITHUB_TOKEN `
-     -Owner TrdHuy `
-     -Repo "KiemTheMobile.LogDBServer" `
-     -DownloadPath "$LOG_DB_SERVER_PATH/t.zip" `
-     -ExtractPath "$LOG_DB_SERVER_PATH" `
-     -Id $response.assets[0].id
+$assetId = Get-AssetIdFromReleaseNote -Repo "KiemTheMobile.GameServer.Extension" -releaseNote $mReleaseNote
+Download-AndInstall -repo "KiemTheMobile.GameServer.Extension" `
+     -assetId $assetId `
+     -installPath $GAME_SERVER_PATH `
+     -isResecure $false
+#######################################################
+$assetId = Get-AssetIdFromReleaseNote -Repo "KiemTheMobile.GameDBServer" -releaseNote $mReleaseNote
+Download-AndInstall -repo "KiemTheMobile.GameDBServer" `
+     -assetId $assetId `
+     -installPath $GAME_DBSERVER_PATH `
+     -isResecure $true
+#######################################################
+$assetId = Get-AssetIdFromReleaseNote -Repo "KiemTheMobile.LogDBServer" -releaseNote $mReleaseNote
+Download-AndInstall -repo "KiemTheMobile.LogDBServer" `
+     -assetId $assetId `
+     -installPath $LOG_DB_SERVER_PATH `
+     -isResecure $true
